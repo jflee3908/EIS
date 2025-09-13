@@ -29,10 +29,10 @@ server = app.server
 
 # --- Step 4: Define the App Layout ---
 app.layout = html.Div([
-    html.H1("Interactive Nyquist Plot Viewer", style={'textAlign': 'center'}),
+    html.H1("EIS", style={'textAlign': 'center'}),
     html.Hr(),
     html.Div([
-        html.Label("Search for Cell Numbers to Display:", style={'fontWeight': 'bold'}),
+        html.Label("Cell Numbers:", style={'fontWeight': 'bold'}),
         dcc.Dropdown(
             id='cell-dropdown',
             options=[{'label': name, 'value': name} for name in cell_data.keys()],
