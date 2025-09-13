@@ -6,26 +6,29 @@ import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output
 
-# --- Step 1: Load all data into memory ---
-mpt_files = glob.glob('*.mpt')
+# --- Step 1: Find all .mpt files in the 'data' subfolder ---
+# The path 'data/*.mpt' finds all files ending in .mpt inside the data folder.
+mpt_files = glob.glob('txt/*.mpt')
+
+# --- Step 2: Load data from the found paths into memory ---
 cell_data = {}
-for file in mpt_files:
+for filepath in mpt_files:
     try:
-        df = pd.read_csv(file, sep='\t', skiprows=63, encoding='latin-1')
+        df = pd.read_csv(filepath, sep='\t', skiprows=63, encoding='latin-1')
         if 'Re(Z)/Ohm' in df.columns and '-Im(Z)/Ohm' in df.columns:
-            cell_name = os.path.splitext(file)[0]
+            filename = os.path.basename(filepath)
+            cell_name = os.path.splitext(filename)[0]
             cell_data[cell_name] = df
     except Exception as e:
-        print(f"Error reading {file}: {e}")
+        print(f"Error reading {filepath}: {e}")
 
-# --- Step 2: Initialize the Dash App ---
+# --- Step 3: Initialize the Dash App ---
 app = dash.Dash(__name__)
-app.title = "EIS"
-server = app.server # <-- ADD THIS LINE FOR RENDER
+app.title = "Nyquist Plot Viewer"
+server = app.server
 
-# --- Step 3: Define the App Layout ---
+# --- Step 4: Define the App Layout ---
 app.layout = html.Div([
-    # ... (The rest of your layout is the same) ...
     html.H1("Interactive Nyquist Plot Viewer", style={'textAlign': 'center'}),
     html.Hr(),
     html.Div([
@@ -41,14 +44,13 @@ app.layout = html.Div([
     dcc.Graph(id='nyquist-plot', style={'height': '70vh'})
 ])
 
-# --- Step 4: Define the Callback to Update the Graph ---
+# --- Step 5: Define the Callback to Update the Graph ---
 @app.callback(
     Output('nyquist-plot', 'figure'),
     Input('cell-dropdown', 'value')
 )
 def update_graph(selected_cells):
     fig = go.Figure()
-
     for cell_name in selected_cells:
         df = cell_data[cell_name]
         fig.add_trace(go.Scatter(
@@ -67,7 +69,6 @@ def update_graph(selected_cells):
         yaxis_scaleanchor="x",
         yaxis_scaleratio=1
     )
-    
     if not selected_cells:
         fig.add_annotation(
             text="Use the search box above to select cells to display",
@@ -76,13 +77,11 @@ def update_graph(selected_cells):
             showarrow=False,
             font=dict(size=20, color="grey")
         )
-
     return fig
 
-# --- Step 5: Run the App's Web Server (for local testing only) ---
+# --- Step 6: Run the App's Web Server ---
 if __name__ == '__main__':
     if not cell_data:
-        print("❌ No valid .mpt files found. The app will not run.")
+        print("❌ No valid .mpt files found in the 'data' folder. The app will not run.")
     else:
-        # This part is for running locally, Render will use its own command
-        app.run_server(debug=False)
+        app.run(debug=False)
