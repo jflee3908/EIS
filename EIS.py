@@ -4,13 +4,12 @@ import os
 import plotly.graph_objects as go
 import dash
 from dash import dcc, html
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State
+from datetime import datetime
+import io
 
-# --- Step 1: Find all .mpt files in the 'data' subfolder ---
-# The path 'data/*.mpt' finds all files ending in .mpt inside the data folder.
+# --- Step 1: Load all data into memory ---
 mpt_files = glob.glob('txt/*.mpt')
-
-# --- Step 2: Load data from the found paths into memory ---
 cell_data = {}
 for filepath in mpt_files:
     try:
@@ -22,64 +21,149 @@ for filepath in mpt_files:
     except Exception as e:
         print(f"Error reading {filepath}: {e}")
 
-# --- Step 3: Initialize the Dash App ---
+def parse_search_string(query_string):
+    """Parses a string with numbers and ranges (e.g., '1-3, 5') into a set of strings."""
+    if not query_string:
+        return set()
+    
+    ids = set()
+    parts = query_string.split(',')
+    
+    for part in parts:
+        part = part.strip()
+        if not part:
+            continue
+        
+        if '-' in part:
+            try:
+                start, end = map(int, part.split('-'))
+                if start > end:
+                    start, end = end, start
+                for i in range(start, end + 1):
+                    ids.add(str(i))
+            except ValueError:
+                continue
+        else:
+            if part.isdigit():
+                ids.add(part)
+    return ids
+
+def get_legend_name(full_cell_name):
+    """Extracts the part of the name before the final '_C##' suffix."""
+    parts = full_cell_name.rsplit('_', 1)
+    if len(parts) == 2 and parts[1].startswith('C') and parts[1][1:].isdigit():
+        return parts[0]
+    return full_cell_name
+
+# --- Step 2: Initialize the Dash App ---
 app = dash.Dash(__name__)
 app.title = "Nyquist Plot Viewer"
 server = app.server
 
-# --- Step 4: Define the App Layout ---
+# --- Step 3: Define the App Layout ---
 app.layout = html.Div([
-    html.H1("EIS", style={'textAlign': 'center'}),
-    html.Hr(),
     html.Div([
-        html.Label("Cell Numbers:", style={'fontWeight': 'bold'}),
-        dcc.Dropdown(
-            id='cell-dropdown',
-            options=[{'label': name, 'value': name} for name in cell_data.keys()],
-            value=[],
-            multi=True,
-            placeholder="Search and select one or more cells..."
-        ),
+        html.H1("EIS", style={'textAlign': 'left', 'margin': '0'}),
+        html.Button("Download Data (.csv)", id="download-button", style={
+            'padding': '6px 12px', 'fontSize': '14px'
+        })
+    ], style={
+        'display': 'flex', 'justifyContent': 'space-between', 'alignItems': 'center',
+        'padding': '10px 2.5%'
+    }),
+    
+    html.Hr(),
+    
+    html.Div([
+        html.Label("Enter Cell IDs (e.g., 17153, 17155-17157):", style={'fontWeight': 'bold', 'display': 'block'}),
+        dcc.Input(id='search-box', type='text', placeholder="Enter IDs and press Enter or click Search...", style={'width': '80%', 'marginRight': '1%'}),
+        html.Button('Search', id='search-button', n_clicks=0, style={'width': '18%'}),
     ], style={'width': '95%', 'margin': 'auto', 'padding': '10px', 'border': '1px solid #ddd', 'borderRadius': '5px'}),
-    dcc.Graph(id='nyquist-plot', style={'height': '70vh'})
+    
+    dcc.Graph(id='nyquist-plot', style={'height': '70vh'}, config={'scrollZoom': True}),
+    
+    dcc.Download(id="download-data-csv"),
+    dcc.Store(id='plotted-data-store')
 ])
 
-# --- Step 5: Define the Callback to Update the Graph ---
+# --- Step 4: Define Callbacks ---
 @app.callback(
     Output('nyquist-plot', 'figure'),
-    Input('cell-dropdown', 'value')
+    Output('plotted-data-store', 'data'),
+    Input('search-button', 'n_clicks'),
+    Input('search-box', 'n_submit'), # New Input: Triggers on Enter key press
+    State('search-box', 'value')
 )
-def update_graph(selected_cells):
+def update_graph_and_store_data(button_clicks, enter_presses, search_query):
+    # Check if the callback was triggered by any user action yet
+    if button_clicks == 0 and (enter_presses is None or enter_presses == 0):
+        fig = go.Figure()
+        fig.add_annotation(text="Enter Experiment IDs and click Search or press Enter", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False, font=dict(size=20, color="grey"))
+        return fig, None
+
+    target_ids = parse_search_string(search_query)
     fig = go.Figure()
-    for cell_name in selected_cells:
-        df = cell_data[cell_name]
-        fig.add_trace(go.Scatter(
-            x=df['Re(Z)/Ohm'],
-            y=df['-Im(Z)/Ohm'],
-            name=cell_name,
-            mode='lines+markers',
-            hovertemplate='<b>Re(Z)</b>: %{x:.3f} Ohm<br><b>-Im(Z)</b>: %{y:.3f} Ohm'
-        ))
+    
+    plotted_dfs = []
+    if target_ids:
+        for exp_id in sorted(list(target_ids)):
+            matching_cells = [cell for cell in cell_data.keys() if cell.split('_')[0] == exp_id]
+            for cell_name in matching_cells:
+                df = cell_data[cell_name]
+                legend_name = get_legend_name(cell_name)
+                
+                fig.add_trace(go.Scatter(
+                    x=df['Re(Z)/Ohm'], y=df['-Im(Z)/Ohm'], name=legend_name,
+                    legendgroup=legend_name, customdata=[cell_name] * len(df),
+                    hovertemplate='<b>Cell</b>: %{customdata}<br><b>Re(Z)</b>: %{x:.3f} Ohm<br><b>-Im(Z)</b>: %{y:.3f} Ohm',
+                    mode='lines+markers'
+                ))
+                
+                df_to_store = df.copy()
+                df_to_store['source_file'] = cell_name
+                plotted_dfs.append(df_to_store)
 
     fig.update_layout(
-        xaxis_title="Re(Z) (Ohm)",
-        yaxis_title="-Im(Z) (Ohm)",
-        legend_title_text="Files",
-        template="plotly_white",
-        yaxis_scaleanchor="x",
-        yaxis_scaleratio=1
+        xaxis_title="Re(Z) (Ohm)", yaxis_title="-Im(Z) (Ohm)",
+        legend_title_text="Experiment Name", template="plotly_white",
+        yaxis_scaleratio=1,
     )
-    if not selected_cells:
-        fig.add_annotation(
-            text="Use the search box above to select cells to display",
-            xref="paper", yref="paper",
-            x=0.5, y=0.5,
-            showarrow=False,
-            font=dict(size=20, color="grey")
-        )
-    return fig
+    
+    if not plotted_dfs:
+        fig.add_annotation(text="No matching cells found.", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False, font=dict(size=20, color="grey"))
+        return fig, None
 
-# --- Step 6: Run the App's Web Server ---
+    combined_df = pd.concat(plotted_dfs, ignore_index=True)
+    return fig, combined_df.to_json(orient='split')
+
+@app.callback(
+    Output("download-data-csv", "data"),
+    Input("download-button", "n_clicks"),
+    State("plotted-data-store", "data"),
+    prevent_initial_call=True,
+)
+def download_data(n_clicks, json_data):
+    if not json_data:
+        return
+    
+    df_long = pd.read_json(io.StringIO(json_data), orient='split')
+    
+    df_long['measurement_index'] = df_long.groupby('source_file').cumcount()
+    
+    df_wide = df_long.pivot(
+        index='measurement_index', 
+        columns='source_file', 
+        values=['Re(Z)/Ohm', '-Im(Z)/Ohm']
+    )
+    
+    df_wide.columns = [f'{val}_{col}' for val, col in df_wide.columns]
+    df_wide = df_wide.reindex(sorted(df_wide.columns), axis=1)
+    
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = f"nyquist_data_wide_{timestamp}.csv"
+    return dcc.send_data_frame(df_wide.to_csv, filename, index=False)
+
+# --- Step 5: Run the App's Web Server ---
 if __name__ == '__main__':
     if not cell_data:
         print("❌ No valid .mpt files found in the 'data' folder. The app will not run.")
