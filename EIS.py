@@ -57,7 +57,7 @@ def get_legend_name(full_cell_name):
 
 # --- Step 2: Initialize the Dash App ---
 app = dash.Dash(__name__)
-app.title = "Nyquist Plot Viewer"
+app.title = "US SD EIS"
 server = app.server
 
 # --- Step 3: Define the App Layout ---
@@ -98,7 +98,7 @@ def update_graph_and_store_data(button_clicks, enter_presses, search_query):
     # Check if the callback was triggered by any user action yet
     if button_clicks == 0 and (enter_presses is None or enter_presses == 0):
         fig = go.Figure()
-        fig.add_annotation(text="Enter Experiment IDs and click Search or press Enter", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False, font=dict(size=20, color="grey"))
+        fig.add_annotation(text="Enter Cell IDs and click Search or press Enter", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False, font=dict(size=20, color="grey"))
         return fig, None
 
     target_ids = parse_search_string(search_query)
