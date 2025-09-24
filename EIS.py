@@ -9,7 +9,7 @@ from datetime import datetime
 import io
 
 # --- Step 1: Load all data into memory ---
-mpt_files = glob.glob('txt/*.mpt')
+mpt_files = glob.glob('data/*.mpt')
 cell_data = {}
 for filepath in mpt_files:
     try:
