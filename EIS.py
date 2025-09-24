@@ -87,6 +87,13 @@ app.layout = html.Div([
     
     dcc.Graph(id='nyquist-plot', style={'height': '70vh'}, config={'scrollZoom': True}),
 
+    html.Div(
+        children=[
+            html.P(status_message, style={'textAlign': 'center', 'color': 'grey', 'fontStyle': 'italic'})
+        ],
+        style={'width': '95%', 'margin': '10px auto'}
+    ),
+
     dcc.Download(id="download-data-csv"),
     dcc.Store(id='plotted-data-store')
 ])
