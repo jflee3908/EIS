@@ -10,6 +10,7 @@ import io
 
 # --- Step 1: Load all data into memory ---
 mpt_files = glob.glob('txt/*.mpt')
+files_found_count = len(mpt_files)
 cell_data = {}
 for filepath in mpt_files:
     try:
@@ -20,6 +21,10 @@ for filepath in mpt_files:
             cell_data[cell_name] = df
     except Exception as e:
         print(f"Error reading {filepath}: {e}")
+files_loaded_count = len(cell_data)
+
+#create status message text
+status_message = f"Status: Successfully loaded {files_loaded_count} of {files_found_count} .mpt files found in the 'data' folder."
 
 def parse_search_string(query_string):
     """Parses a string with numbers and ranges (e.g., '1-3, 5') into a set of strings."""
@@ -81,7 +86,7 @@ app.layout = html.Div([
     ], style={'width': '95%', 'margin': 'auto', 'padding': '10px', 'border': '1px solid #ddd', 'borderRadius': '5px'}),
     
     dcc.Graph(id='nyquist-plot', style={'height': '70vh'}, config={'scrollZoom': True}),
-    
+
     dcc.Download(id="download-data-csv"),
     dcc.Store(id='plotted-data-store')
 ])
