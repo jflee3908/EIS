@@ -12,6 +12,7 @@ import io
 mpt_files = glob.glob('txt/*.mpt')
 files_found_count = len(mpt_files)
 cell_data = {}
+failed_files = []
 for filepath in mpt_files:
     try:
         df = pd.read_csv(filepath, sep='\t', skiprows=63, encoding='latin-1')
