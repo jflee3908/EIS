@@ -19,13 +19,26 @@ for filepath in mpt_files:
             filename = os.path.basename(filepath)
             cell_name = os.path.splitext(filename)[0]
             cell_data[cell_name] = df
+        else:
+            failed_files.append(os.path.basename(filepath))
     except Exception as e:
         print(f"Error reading {filepath}: {e}")
+        failed_files.append(os.path.basename(filepath))
+        
 files_loaded_count = len(cell_data)
 
 #create status message text
 status_message = f"Status: Successfully loaded {files_loaded_count} of {files_found_count} .mpt files found in the 'data' folder."
 
+if failed_files:
+    failed_files_content = [
+        html.P("The following files could not be loaded and were ignored,",
+               style={'color': '#d9534f', 'fontWeight': 'bold', 'marginTop': '10px'}),
+        html.Ul([html.Li(f) for f in sorted(failed_files)])
+    ]
+else:
+    failed_files_content = [] #render nothing if all files loaded successfully
+    
 def parse_search_string(query_string):
     """Parses a string with numbers and ranges (e.g., '1-3, 5') into a set of strings."""
     if not query_string:
@@ -94,6 +107,8 @@ app.layout = html.Div([
         style={'width': '95%', 'margin': '10px auto'}
     ),
 
+    html.Div(children=failed_files_content, style={'width': '95%', 'margin': 'auto'}),
+    
     dcc.Download(id="download-data-csv"),
     dcc.Store(id='plotted-data-store')
 ])
@@ -103,7 +118,7 @@ app.layout = html.Div([
     Output('nyquist-plot', 'figure'),
     Output('plotted-data-store', 'data'),
     Input('search-button', 'n_clicks'),
-    Input('search-box', 'n_submit'), # New Input: Triggers on Enter key press
+    Input('search-box', 'n_submit'),
     State('search-box', 'value')
 )
 def update_graph_and_store_data(button_clicks, enter_presses, search_query):
