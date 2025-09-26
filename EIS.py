@@ -26,9 +26,17 @@ for filepath in mpt_files:
         failed_files.append(os.path.basename(filepath))
         
 files_loaded_count = len(cell_data)
-
-#create status message text
 status_message = f"Status: Successfully loaded {files_loaded_count} of {files_found_count} .mpt files found in the 'data' folder."
+
+#Find the file with the largest initial number
+largest_file_message = "Largest Cell Number: None"
+if mpt_files:
+    try:
+        largest_filepath = max(mpt_files, key=lambda p: int(os.path.basename(p).split('_')[0]))
+        largest_cell_name = os.path.splitext(os.path.basename(largest_filepath))[0]
+        largest_file_message = f"Largest Cell Number: {largest_cell_name}"
+    except (ValueError, IndexError):
+        largest_file_message = "Largest Cell Number: Could not parse filenames."
 
 if failed_files:
     failed_files_content = [
@@ -102,11 +110,10 @@ app.layout = html.Div([
 
     html.Div(
         children=[
-            html.P(status_message, style={'textAlign': 'center', 'color': 'grey', 'fontStyle': 'italic'})
-        ],
-        style={'width': '95%', 'margin': '10px auto'}
-    ),
-
+            html.P(status_message, style={'textAlign': 'center', 'color': 'grey', 'fontStyle': 'italic'}),
+            html.P(largest_file_message, style={'textAlign': 'center', 'color': 'grey', 'fontStyle': 'italic', 'margin': '2px'})
+    ], style={'width': '95%', 'margin': '10px auto'}),
+    
     html.Div(children=failed_files_content, style={'width': '95%', 'margin': 'auto'}),
     
     dcc.Download(id="download-data-csv"),
